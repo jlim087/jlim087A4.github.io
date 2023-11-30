@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linked Bar and Line Chart with Tooltips</title>
+
+    <!-- Include Vega-Lite and Vega-Embed from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+</head>
+<body>
+    <!-- Containers for the Vega-Lite visualizations -->
+    <div id="barChart"></div>
+    <div id="lineChart"></div>
+
+    <!-- Buttons for each year -->
+    <div>
+        <button onclick="updateCharts(2014)">2014</button>
+        <button onclick="updateCharts(2015)">2015</button>
+        <button onclick="updateCharts(2016)">2016</button>
+        <button onclick="updateCharts(2017)">2017</button>
+        <button onclick="updateCharts(2018)">2018</button>
+        <button onclick="updateCharts(2019)">2019</button>
+        <button onclick="updateCharts(2020)">2020</button>
+        <button onclick="updateCharts(2021)">2021</button>
+        <button onclick="updateCharts(2022)">2022</button>
+        <button onclick="updateCharts(2023)">2023</button>
+        <!-- Add buttons for other years as needed -->
+    
+        <!-- Input field for camera IDs -->
+        <input type="text" id="cameraIdsInput" placeholder="Enter Camera IDs (e.g., CHI004 | CHI023 | CHI024)">
+        <button onclick="updateChartsByCameraIds()">Update by Camera IDs</button>
+    </div>
+
+    <!-- Container for displaying selected filters -->
+    <div id="selectedFilters"></div>
+
+    <script>
+        // Load data from the CSV file
+        const dataUrl = "testing.csv";
+        // Variable to store selected camera IDs
+        let selectedCameraIds = [];
+        function loadScript(src, callback){
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.src = src;
+            script.onload = callback;
+            document.head.appendChild(script);
+        }
+
+        // Load Vega libraries before executing the updateCharts function
+        loadScript("https://cdn.jsdelivr.net/npm/vega@5", function(){
+            loadScript("https://cdn.jsdelivr.net/npm/vega-lite@5", function(){
+                loadScript("https://cdn.jsdelivr.net/npm/vega-embed@6", function(){
+                    // Initial update for the year 2014
+                    updateCharts(2014);
+                });
+            });
+        });
+
+
+        // Function to update charts based on the selected year or all cameras
+        function updateCharts(selectedYear) {
+            // If selectedYear is not provided, display all cameras
+            const cameraFilter = selectedYear ? { timeUnit: "year", field: "VIOLATION DATE", equal: selectedYear } : null;
+
+            // Bar chart specification
+            const barChartSpec = {
+                $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+                data: { url: dataUrl },
+                title: `Total Violations - Bar Chart${selectedYear ? ` (${selectedYear})` : ""}`, // Title for the bar chart
+                mark: "bar",
+                encoding: {
+                    x: { field: "CAMERA ID", title: "Camera ID", type: "ordinal" },
+                    y: { aggregate: "sum", field: "VIOLATIONS", title: "Total Violations", type: "quantitative" },
+                    tooltip: [
+                        { field: "CAMERA ID", title: "Camera ID" },
+                        { field: "VIOLATIONS", title: "Total Violations", format: ",.0f" }, // Format as integer
+                    ],
+                },
+                selection: {
+                    cameraSelection: { type: "single", on: "mouseover", fields: ["CAMERA ID"], empty: "none" },
+                },
+                transform: [
+                    { filter: cameraFilter }, // Apply year filter if selected
+                ],
+            };
+
+            // Line chart specification
+            const lineChartSpec = {
+                $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+                data: { url: dataUrl },
+                title: `Total Violations - Line Chart${selectedYear ? ` (${selectedYear})` : ""}`, // Title for the line chart
+                mark: "line",
+                encoding: {
+                    x: { field: "CAMERA ID", title: "Camera ID", type: "ordinal" },
+                    y: { aggregate: "sum", field: "VIOLATIONS", title: "Total Violations", type: "quantitative" },
+                    tooltip: [
+                        { field: "CAMERA ID", title: "Camera ID" },
+                        { field: "VIOLATIONS", title: "Total Violations", format: ",.0f" }, // Format as integer
+                    ],
+                },
+                selection: {
+                    cameraSelection: { type: "single", fields: ["CAMERA ID"], bind: "legend" },
+                },
+                transform: [
+                    { filter: cameraFilter }, // Apply year filter if selected
+                ],
+            };
+
+            // Embed the bar chart
+            vegaEmbed('#barChart', barChartSpec).then((barChartView) => {
+                // Embed the line chart with the same view as the bar chart
+                vegaEmbed('#lineChart', lineChartSpec, { view: barChartView }).then((lineChartView) => {
+                    // Add a listener for selection changes in the bar chart
+                    barChartView.addDataListener('mouseover', (event, item) => {
+                        if (item && item.datum) {
+                            // Set the selection in both charts
+                            const selectedCameraId = item.datum['CAMERA ID'];
+                            barChartView.signal('cameraSelection', selectedCameraId).run();
+                            lineChartView.signal('cameraSelection', selectedCameraId).run();
+                        }
+                    });
+                });
+            });
+        }
+
+        // Function to update charts based on the entered camera IDs
+        function updateChartsByCameraIds() {
+            // Get the entered camera IDs from the input field
+            const cameraIdsInput = document.getElementById('cameraIdsInput');
+            const enteredCameraIds = cameraIdsInput.value;
+
+            // Convert entered camera IDs to an array
+            const cameraIdRanges = enteredCameraIds.split('|').map(id => id.trim());
+
+            // Flatten the array by expanding ranges
+            const cameraIdsArray = [];
+            cameraIdRanges.forEach(range => {
+                const [start, end] = range.split('-').map(id => id.trim());
+                if (start && end) {
+                    const startNum = parseInt(start.substr(-3), 10);
+                    const endNum = parseInt(end.substr(-3), 10);
+                    for (let i = startNum; i <= endNum; i++) {
+                        const formattedId = start.substr(0, start.length - 3) + i.toString().padStart(3, '0');
+                        cameraIdsArray.push(formattedId);
+                    }
+                } else {
+                    cameraIdsArray.push(start);
+                }
+            });
+
+            // Display selected filters
+            const selectedFiltersContainer = document.getElementById('selectedFilters');
+            selectedFiltersContainer.innerText = `Selected Camera IDs: ${cameraIdsArray.join(', ')}`;
+
+            // Bar chart specification
+            const barChartSpec = {
+                $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+                data: { url: dataUrl },
+                title: `Total Violations - Bar Chart (${cameraIdsArray.join(', ')})`, // Title for the bar chart
+                mark: "bar",
+                encoding: {
+                    x: { field: "CAMERA ID", title: "Camera ID", type: "ordinal" },
+                    y: { aggregate: "sum", field: "VIOLATIONS", title: "Total Violations", type: "quantitative" },
+                    tooltip: [
+                        { field: "CAMERA ID", title: "Camera ID" },
+                        { field: "VIOLATIONS", title: "Total Violations", format: ",.0f" }, // Format as integer
+                    ],
+                },
+                selection: {
+                    cameraSelection: { type: "single", on: "mouseover", fields: ["CAMERA ID"], empty: "none" },
+                },
+                transform: [
+                    { filter: { field: "CAMERA ID", oneOf: cameraIdsArray } },
+                    { filter: { timeUnit: "year", field: "VIOLATION DATE", equal: 2014 } }, // Adjust year as needed
+                ],
+            };
+            selectedCameraIds = cameraIdsArray;
+            // Line chart specification
+            const lineChartSpec = {
+                $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+                data: { url: dataUrl },
+                title: `Total Violations - Line Chart (${cameraIdsArray.join(', ')})`, // Title for the line chart
+                mark: "line",
+                encoding: {
+                    x: { field: "CAMERA ID", title: "Camera ID", type: "ordinal" },
+                    y: { aggregate: "sum", field: "VIOLATIONS", title: "Total Violations", type: "quantitative" },
+                    tooltip: [
+                        { field: "CAMERA ID", title: "Camera ID" },
+                        { field: "VIOLATIONS", title: "Total Violations", format: ",.0f" }, // Format as integer
+                    ],
+                },
+                selection: {
+                    cameraSelection: { type: "single", fields: ["CAMERA ID"], bind: "legend" },
+                },
+                transform: [
+                    { filter: { field: "CAMERA ID", oneOf: cameraIdsArray } },
+                    { filter: { timeUnit: "year", field: "VIOLATION DATE", equal: 2014 } }, // Adjust year as needed
+                ],
+            };
+            // Embed the bar chart
+            vegaEmbed('#barChart', barChartSpec).then((barChartView) => {
+                vegaEmbed('#lineChart', lineChartSpec, { view: barChartView }).then((lineChartView) => {
+                    barChartView.addDataListener('mouseover', (event, item) => {
+                        if (item && item.datum) {
+                            const selectedCameraId = item.datum['CAMERA ID'];
+                            barChartView.signal('cameraSelection', selectedCameraId).run();
+                            lineChartView.signal('cameraSelection', selectedCameraId).run();
+                        }
+                    });
+                });
+            });
+        }
+
+        // Initial update for the year 2014
+        updateCharts(2014);
+    </script>
+</body>
+</html>

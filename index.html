@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assignment 4</title>
+</head>
+<body>
+
+    <h1>Assignment 4</h1>
+
+    <nav>
+        <ul>
+            <li><a href="#" onclick="loadContent('drawings.html'); return false;">Go to Drawings Page</a></li>
+            <li><a href="#" onclick="loadContent('static.html'); return false;">Go to Static Visualization Page</a></li>
+            <li><a href="#" onclick="loadContent('linked.html'); return false;">Go to Linked visualization Page</a></li>
+            <li><a href="#" onclick="loadContent('spatial.html'); return false;">Go to Spatial Visualization Page</a></li>
+        </ul>
+    </nav>
+
+    <!-- Content specific to each page will be loaded here -->
+    <div id="content"></div>
+
+    <script>
+        // Function to load content dynamically
+        function loadContent(page) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    document.getElementById("content").innerHTML = this.responseText;
+                    history.pushState({ page: page }, "", page);
+                }
+            };
+            xhttp.open("GET", page, true);
+            xhttp.send();
+        }
+
+        // Function to handle back button
+        window.onpopstate = function(event) {
+            if (event.state) {
+                loadContent(event.state.page);
+            }
+        };
+    </script>
+
+</body>
+</html>
