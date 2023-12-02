@@ -1,47 +1,346 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Assignment 4</title>
+    <title>Combined Visualization</title>
+
+    <!-- Include Vega-Lite and Vega-Embed from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+
+    <!-- Include Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <!-- Include D3.js -->
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+
+    <!-- Include Leaflet and the GeoJSON file -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-omnivore/leaflet-omnivore.min.js"></script>
 </head>
 <body>
+    <!-- Containers for the Vega-Lite visualizations -->
+    <div id="barChart"></div>
+    <div id="lineChart"></div>
+    <div>
+        <button onclick="updateCharts(2014)">2014</button>
+        <!-- Add other buttons as needed -->
+    </div>
 
-    <h1>Assignment 4</h1>
+    <!-- Input field for camera IDs -->
+    <input type="text" id="cameraIdsInput" placeholder="Enter Camera IDs (e.g., CHI004 | CHI023 | CHI024)">
+    <button onclick="updateChartsByCameraIds()">Update by Camera IDs</button>
 
-    <nav>
-        <ul>
-            <li><a href="#" onclick="loadContent('drawings.html'); return false;">Go to Drawings Page</a></li>
-            <li><a href="#" onclick="loadContent('static.html'); return false;">Go to Static Visualization Page</a></li>
-            <li><a href="#" onclick="loadContent('linked.html'); return false;">Go to Linked visualization Page</a></li>
-            <li><a href="#" onclick="loadContent('spatial.html'); return false;">Go to Spatial Visualization Page</a></li>
-        </ul>
-    </nav>
+    <div id="areaChart"></div>
+    <div id="lineChart2"></div>
+    <input type="text" id="filterYearInput" placeholder="Type a year to filter">
+    <div id="selectedFilters"></div>
 
-    <!-- Content specific to each page will be loaded here -->
-    <div id="content"></div>
+    <!-- Map container -->
+    <div id="map" style="height: 600px;"></div>
+    <div id="barChartSpatial" style="width: 600px; height: 400px;"></div>
 
     <script>
-        // Function to load content dynamically
-        function loadContent(page) {
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange = function() {
-                if (this.readyState == 4 && this.status == 200) {
-                    document.getElementById("content").innerHTML = this.responseText;
-                    history.pushState({ page: page }, "", page);
-                }
-            };
-            xhttp.open("GET", page, true);
-            xhttp.send();
+        // Load data from the CSV file
+        const dataUrl = "testing.csv";
+        // Variable to store selected camera IDs
+        let selectedCameraIds = [];
+        function loadScript(src, callback){
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.src = src;
+            script.onload = callback;
+            document.head.appendChild(script);
         }
 
-        // Function to handle back button
-        window.onpopstate = function(event) {
-            if (event.state) {
-                loadContent(event.state.page);
-            }
-        };
-    </script>
+        // Load Vega libraries before executing the updateCharts function
+        loadScript("https://cdn.jsdelivr.net/npm/vega@5", function(){
+            loadScript("https://cdn.jsdelivr.net/npm/vega-lite@5", function(){
+                loadScript("https://cdn.jsdelivr.net/npm/vega-embed@6", function(){
+                    // Initial update for the year 2014
+                    updateCharts(2014);
+                });
+            });
+        });
 
+
+        // Function to update charts based on the selected year or all cameras
+        function updateCharts(selectedYear) {
+            // If selectedYear is not provided, display all cameras
+            const cameraFilter = selectedYear ? { timeUnit: "year", field: "VIOLATION DATE", equal: selectedYear } : null;
+
+            // Bar chart specification
+            const barChartSpec = {
+                $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+                data: { url: dataUrl },
+                title: `Total Violations - Bar Chart${selectedYear ? ` (${selectedYear})` : ""}`, // Title for the bar chart
+                mark: "bar",
+                encoding: {
+                    x: { field: "CAMERA ID", title: "Camera ID", type: "ordinal" },
+                    y: { aggregate: "sum", field: "VIOLATIONS", title: "Total Violations", type: "quantitative" },
+                    tooltip: [
+                        { field: "CAMERA ID", title: "Camera ID" },
+                        { field: "VIOLATIONS", title: "Total Violations", format: ",.0f" }, // Format as integer
+                    ],
+                },
+                selection: {
+                    cameraSelection: { type: "single", on: "mouseover", fields: ["CAMERA ID"], empty: "none" },
+                },
+                transform: [
+                    { filter: cameraFilter }, // Apply year filter if selected
+                ],
+            };
+
+            // Line chart specification
+            const lineChartSpec = {
+                $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+                data: { url: dataUrl },
+                title: `Total Violations - Line Chart${selectedYear ? ` (${selectedYear})` : ""}`, // Title for the line chart
+                mark: "line",
+                encoding: {
+                    x: { field: "CAMERA ID", title: "Camera ID", type: "ordinal" },
+                    y: { aggregate: "sum", field: "VIOLATIONS", title: "Total Violations", type: "quantitative" },
+                    tooltip: [
+                        { field: "CAMERA ID", title: "Camera ID" },
+                        { field: "VIOLATIONS", title: "Total Violations", format: ",.0f" }, // Format as integer
+                    ],
+                },
+                selection: {
+                    cameraSelection: { type: "single", fields: ["CAMERA ID"], bind: "legend" },
+                },
+                transform: [
+                    { filter: cameraFilter }, // Apply year filter if selected
+                ],
+            };
+
+            // Embed the bar chart
+            vegaEmbed('#barChart', barChartSpec).then((barChartView) => {
+                // Embed the line chart with the same view as the bar chart
+                vegaEmbed('#lineChart', lineChartSpec, { view: barChartView }).then((lineChartView) => {
+                    // Add a listener for selection changes in the bar chart
+                    barChartView.addDataListener('mouseover', (event, item) => {
+                        if (item && item.datum) {
+                            // Set the selection in both charts
+                            const selectedCameraId = item.datum['CAMERA ID'];
+                            barChartView.signal('cameraSelection', selectedCameraId).run();
+                            lineChartView.signal('cameraSelection', selectedCameraId).run();
+                        }
+                    });
+                });
+            });
+        }
+
+        // Function to update charts based on the entered camera IDs
+        function updateChartsByCameraIds() {
+            // Get the entered camera IDs from the input field
+            const cameraIdsInput = document.getElementById('cameraIdsInput');
+            const enteredCameraIds = cameraIdsInput.value;
+
+            // Convert entered camera IDs to an array
+            const cameraIdRanges = enteredCameraIds.split('|').map(id => id.trim());
+
+            // Flatten the array by expanding ranges
+            const cameraIdsArray = [];
+            cameraIdRanges.forEach(range => {
+                const [start, end] = range.split('-').map(id => id.trim());
+                if (start && end) {
+                    const startNum = parseInt(start.substr(-3), 10);
+                    const endNum = parseInt(end.substr(-3), 10);
+                    for (let i = startNum; i <= endNum; i++) {
+                        const formattedId = start.substr(0, start.length - 3) + i.toString().padStart(3, '0');
+                        cameraIdsArray.push(formattedId);
+                    }
+                } else {
+                    cameraIdsArray.push(start);
+                }
+            });
+
+            // Display selected filters
+            const selectedFiltersContainer = document.getElementById('selectedFilters');
+            selectedFiltersContainer.innerText = `Selected Camera IDs: ${cameraIdsArray.join(', ')}`;
+
+            // Bar chart specification
+            const barChartSpec = {
+                $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+                data: { url: dataUrl },
+                title: `Total Violations - Bar Chart (${cameraIdsArray.join(', ')})`, // Title for the bar chart
+                mark: "bar",
+                encoding: {
+                    x: { field: "CAMERA ID", title: "Camera ID", type: "ordinal" },
+                    y: { aggregate: "sum", field: "VIOLATIONS", title: "Total Violations", type: "quantitative" },
+                    tooltip: [
+                        { field: "CAMERA ID", title: "Camera ID" },
+                        { field: "VIOLATIONS", title: "Total Violations", format: ",.0f" }, // Format as integer
+                    ],
+                },
+                selection: {
+                    cameraSelection: { type: "single", on: "mouseover", fields: ["CAMERA ID"], empty: "none" },
+                },
+                transform: [
+                    { filter: { field: "CAMERA ID", oneOf: cameraIdsArray } },
+                    { filter: { timeUnit: "year", field: "VIOLATION DATE", equal: 2014 } }, // Adjust year as needed
+                ],
+            };
+            selectedCameraIds = cameraIdsArray;
+            // Line chart specification
+            const lineChartSpec = {
+                $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+                data: { url: dataUrl },
+                title: `Total Violations - Line Chart (${cameraIdsArray.join(', ')})`, // Title for the line chart
+                mark: "line",
+                encoding: {
+                    x: { field: "CAMERA ID", title: "Camera ID", type: "ordinal" },
+                    y: { aggregate: "sum", field: "VIOLATIONS", title: "Total Violations", type: "quantitative" },
+                    tooltip: [
+                        { field: "CAMERA ID", title: "Camera ID" },
+                        { field: "VIOLATIONS", title: "Total Violations", format: ",.0f" }, // Format as integer
+                    ],
+                },
+                selection: {
+                    cameraSelection: { type: "single", fields: ["CAMERA ID"], bind: "legend" },
+                },
+                transform: [
+                    { filter: { field: "CAMERA ID", oneOf: cameraIdsArray } },
+                    { filter: { timeUnit: "year", field: "VIOLATION DATE", equal: 2014 } }, // Adjust year as needed
+                ],
+            };
+            // Embed the bar chart
+            vegaEmbed('#barChart', barChartSpec).then((barChartView) => {
+                vegaEmbed('#lineChart', lineChartSpec, { view: barChartView }).then((lineChartView) => {
+                    barChartView.addDataListener('mouseover', (event, item) => {
+                        if (item && item.datum) {
+                            const selectedCameraId = item.datum['CAMERA ID'];
+                            barChartView.signal('cameraSelection', selectedCameraId).run();
+                            lineChartView.signal('cameraSelection', selectedCameraId).run();
+                        }
+                    });
+                });
+            });
+        }
+        const areaChartSpec = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "data": {
+                "url": "testing.csv",
+                "format": {"parse": {"VIOLATION DATE": "date"}}
+            },
+            "mark": "area",
+            "encoding": {
+                "x": {"timeUnit": "month", "field": "VIOLATION DATE", "type": "ordinal", "title": "Month"},
+                "y": {"aggregate": "sum", "field": "VIOLATIONS", "type": "quantitative", "title": "Total Violations"},
+                "color": {"field": "YEAR", "type": "nominal", "title": "Year"}
+            },
+            "width": 600,
+            "height": 400,
+            "title": "Total Violations by Month (2014-2023)",
+            "selection": {"hover": {"type": "single", "nearest": true, "on": "mouseover", "empty": "none"}}
+        };
+
+        // Altair chart specification for line chart
+        const lineChartSpec = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "data": {
+                "url": "testing.csv",
+                "format": {"parse": {"VIOLATION DATE": "date"}}
+            },
+            "mark": "line",
+            "encoding": {
+                "x": {"timeUnit": "month", "field": "VIOLATION DATE", "type": "ordinal", "title": "Month"},
+                "y": {"aggregate": "sum", "field": "VIOLATIONS", "type": "quantitative", "title": "Total Violations"},
+                "color": {"field": "YEAR", "type": "nominal", "title": "Year"}
+            },
+            "width": 600,
+            "height": 400,
+            "title": "Total Violations by Month (2014-2023)",
+            "selection": {"hover": {"type": "single", "nearest": true, "on": "mouseover", "empty": "none"}}
+        };
+
+        // Embed the area chart
+        vegaEmbed("#areaChart", areaChartSpec, { "actions": false }).then((areaChartView) => {
+            // Embed the line chart with the same view as the area chart
+            vegaEmbed("#lineChart2", lineChartSpec, { "actions": false, "view": areaChartView }).then((lineChartView) => {
+                // Add tooltip logic for both charts
+                areaChartView.addEventListener('mouseover', (event, item) => {
+                    if (item && item.datum) {
+                        lineChartView.tooltip(item.datum, event.clientX, event.clientY, 'global');
+                    }
+                });
+
+                lineChartView.addEventListener('mouseover', (event, item) => {
+                    if (item && item.datum) {
+                        areaChartView.tooltip(item.datum, event.clientX, event.clientY, 'global');
+                    }
+                });
+
+                // Add custom tooltip logic for filtering by year
+                const filterYearInput = document.getElementById('filterYearInput');
+                filterYearInput.addEventListener('input', (event) => {
+                const typedYear = event.target.value.trim();
+
+                    // Check if the typed input is a valid year
+                    if (!isNaN(typedYear) && typedYear.length === 4) {
+                        const filterYear = parseInt(typedYear);
+
+                        // Update chart views to filter by the typed year
+                        areaChartView.filter('VIOLATION DATE', { timeUnit: 'year', year: filterYear }).run();
+                        lineChartView.filter('VIOLATION DATE', { timeUnit: 'year', year: filterYear }).run();
+                    }
+                });
+            });
+        });
+        // Initial update for the year 2014
+        updateCharts(2014);
+        const map = L.map('map').setView([41.8781, -87.6298], 10);
+
+// Add the tile layer
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+// Load the GeoJSON shapefile
+omnivore.geojson('boundaries-zipcode.geojson').on('ready', function () {
+    this.addTo(map);
+}).on('error', function (error) {
+    console.error('Error loading GeoJSON:', error);
+});
+
+// Load your CSV data once and use it for both map and bar chart
+d3.csv('cleaned.csv').then((data) => {
+    // Add circle markers to the map for each data point
+    data.forEach((d) => {
+        const lat = parseFloat(d.LATITUDE);
+        const lon = parseFloat(d.LONGITUDE);
+
+        if (!isNaN(lat) && !isNaN(lon)) {
+            const circle = L.circleMarker([lat, lon], {
+                radius: 5,
+                color: 'red',
+                fillOpacity: 0.8,
+            });
+
+            circle.bindTooltip(`<b>Violations:</b> ${d.VIOLATIONS}`, { sticky: true });
+            circle.addTo(map);
+
+            // Assign an ID to each marker
+            circle._path.id = `marker-${d['CAMERA ID']}`;
+
+            // Add click event to the marker
+            circle.on('click', function() {
+                highlightBarChart(d['CAMERA ID']);
+            });
+        }
+    });
+
+    // Aggregate data for the bar chart
+    const barChartData = aggregateData(data);
+
+    // Create a bar chart
+    createBarChart(barChartData);
+}).catch((error) => {
+    console.error('Error loading CSV:', error);
+});
+    </script>
 </body>
 </html>
