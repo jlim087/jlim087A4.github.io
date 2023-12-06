@@ -23,6 +23,7 @@
 </head>
 <body>
     <!-- Containers for the Vega-Lite visualizations -->
+    <h1>linked Visualization 1</h1>
     <div id="barChart"></div>
     <div id="lineChart"></div>
     <div>
@@ -33,16 +34,21 @@
     <!-- Input field for camera IDs -->
     <input type="text" id="cameraIdsInput" placeholder="Enter Camera IDs (e.g., CHI004 | CHI023 | CHI024)">
     <button onclick="updateChartsByCameraIds()">Update by Camera IDs</button>
-
+    <h1>linked Visualization 2</h1>
     <div id="areaChart"></div>
     <div id="lineChart2"></div>
     <input type="text" id="filterYearInput" placeholder="Type a year to filter">
     <div id="selectedFilters"></div>
-
+    <h1>Multi-Linked Visualization</h1>
+    <div id="altair-chart"></div>
+    <label for="cameraIdInput">Enter Camera ID(s):</label>
+    <input type="text" id="cameraIdInput" placeholder="e.g., CHI004 or CHI004-CHI020">
+    <button onclick="updateCharts()">Update Charts</button>
     <!-- Map container -->
+    <h1>Spatial Visualization</h1>
     <div id="map" style="height: 600px;"></div>
     <div id="barChartSpatial" style="width: 600px; height: 400px;"></div>
-
+    
     <script>
         // Load data from the CSV file
         const dataUrl = "testing.csv";
@@ -341,6 +347,49 @@ d3.csv('cleaned.csv').then((data) => {
 }).catch((error) => {
     console.error('Error loading CSV:', error);
 });
+var spec = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "data": {"url": "testing.csv"},
+            "selection": {
+                "highlight": {"type": "multi", "fields": ["CAMERA ID"]}
+            },
+            "vconcat": [
+                // Scatter plot
+                {
+                    "mark": "circle",
+                    "encoding": {
+                        "x": {"field": "LONGITUDE", "type": "quantitative", "scale": {"domain": [-87.9, -87.5]}},
+                        "y": {"field": "LATITUDE", "type": "quantitative", "scale": {"domain": [41.65, 42.05]}}, // Set the latitude domain
+                        "color": {"field": "CAMERA ID", "type": "nominal"},
+                        "size": {"field": "VIOLATIONS", "type": "quantitative"},
+                        "tooltip": ["CAMERA ID", "VIOLATIONS", "YEAR"]
+                    }
+                },
+                // Bar chart
+                {
+                    "mark": "bar",
+                    "encoding": {
+                        "x": {"field": "YEAR", "type": "ordinal"},
+                        "y": {"aggregate": "sum", "field": "VIOLATIONS", "type": "quantitative"},
+                        "color": {"field": "CAMERA ID", "type": "nominal"},
+                        "tooltip": ["CAMERA ID", "YEAR", {"aggregate": "sum", "field": "VIOLATIONS", "type": "quantitative"}]
+                    }
+                },
+                // Line chart
+                {
+                    "mark": "line",
+                    "encoding": {
+                        "x": {"field": "YEAR", "type": "ordinal"},
+                        "y": {"aggregate": "mean", "field": "LATITUDE", "type": "quantitative", "scale": {"domain": [41.65, 42.05]}},
+                        "color": {"field": "CAMERA ID", "type": "nominal"},
+                        "tooltip": ["CAMERA ID", "YEAR", {"aggregate": "mean", "field": "LATITUDE", "type": "quantitative"}]
+                    }
+                }
+            ]
+        };
+
+        // Embed the Altair charts in the specified container
+        vegaEmbed("#altair-chart", spec, { "actions": false });
     </script>
 </body>
 </html>
